@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <title>대기열 취소</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1f2937; color: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'], }, } } }
+    </script>
+    <div class="bg-gray-800 p-8 md:p-10 rounded-xl shadow-2xl max-w-sm w-full text-center">
+        <h1 class="text-4xl font-extrabold text-red-500 mb-6">대기열 취소</h1>
+        <form id="cancel-form" class="flex flex-col gap-4">
+            <div>
+                <label for="name" class="block text-left text-gray-400 font-semibold mb-2">이름:</label>
+                <input type="text" id="name" name="name" required class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-500 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <div>
+                <label for="phone_number" class="block text-left text-gray-400 font-semibold mb-2">전화번호:</label>
+                <input type="text" id="phone_number" name="phone_number" required class="w-full p-3 rounded-lg bg-gray-700 text-white placeholder-gray-500 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <button type="submit" id="cancel-button" class="w-full mt-4 p-4 rounded-lg bg-red-600 text-white font-bold text-lg hover:bg-red-700 transition-colors">취소하기</button>
+        </form>
+        <p id="status-message" class="mt-6 font-bold text-lg"></p>
+    </div>
+
+    <script>
+        const cancelForm = document.getElementById("cancel-form");
+        const statusMessage = document.getElementById("status-message");
+
+        cancelForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const name = document.getElementById("name").value;
+            const phoneNumber = document.getElementById("phone_number").value;
+
+            try {
+                const response = await fetch("http://localhost:8000/api/v1/queue/cancel", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: name, phone_number: phoneNumber }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusMessage.textContent = "대기열에서 성공적으로 제거되었습니다.";
+                    statusMessage.style.color = "#10b981";
+                    cancelForm.reset();
+                } else {
+                    statusMessage.textContent = `취소 실패: ${data.detail || '알 수 없는 오류'}`;
+                    statusMessage.style.color = "#ef4444";
+                }
+            } catch (error) {
+                statusMessage.textContent = "네트워크 오류가 발생했습니다.";
+                statusMessage.style.color = "#ef4444";
+                console.error("Error:", error);
+            }
+        });
+    </script>
+</body>
+</html>

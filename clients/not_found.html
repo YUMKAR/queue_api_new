@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>페이지를 찾을 수 없습니다</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #1a202c; /* 다크 테마 배경색 */
+            color: #a0aec0; /* 다크 테마 글자색 */
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #2d3748; /* 컨테이너 배경색 */
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* 그림자 색상 진하게 */
+            max-width: 500px;
+            transform: translateY(-20px);
+            animation: fadeIn 1s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .error-code {
+            font-size: 8rem;
+            font-weight: 700;
+            color: #4a5568; /* 다크 테마 404 배경 숫자색 */
+            position: relative;
+            margin: 0;
+        }
+        .error-code::before {
+            content: "404";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4a5568; /* 다크 테마 404 전면 숫자색 */
+            text-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+        }
+        h1 {
+            font-size: 1.8rem;
+            color: #e2e8f0; /* 제목 색상 */
+            margin: 0 0 10px 0;
+        }
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+            color: #cbd5e0; /* 본문 색상 */
+        }
+        .home-link {
+            display: inline-block;
+            background-color: #63b3ed; /* 버튼 색상 */
+            color: #1a202c; /* 버튼 글자색 */
+            padding: 12px 25px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            transition: background-color 0.3s ease;
+        }
+        .home-link:hover {
+            background-color: #4299e1; /* 호버 색상 */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="error-code">404</div>
+        <h1>이런, 페이지를 찾을 수 없어요.</h1>
+        <p>
+            입력하신 주소가 잘못되었거나, 페이지가 삭제되었을 수 있습니다.
+            걱정하지 마세요. 아래 버튼을 눌러 다시 시작할 수 있습니다.
+        </p>
+        <a href="/" class="home-link">홈으로 돌아가기</a>
+    </div>
+
+</body>
+</html>

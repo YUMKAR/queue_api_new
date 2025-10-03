@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <title>실시간 대기 현황판</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1f2937; color: #f3f4f6; display: flex; flex-direction: column; min-height: 100vh; padding: 20px; }
+        #queue-list-container { max-height: 60vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+        #queue-list-container::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <header class="text-center mb-8">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2">실시간 대기 현황</h1>
+        <p class="text-xl md:text-2xl text-gray-300">현재 대기 중인 인원: <span id="total-waiters" class="text-yellow-400 font-bold">0명</span></p>
+    </header>
+    <main class="flex flex-col lg:flex-row gap-8 flex-grow">
+        <section class="lg:w-1/3 bg-gray-700 p-6 md:p-8 rounded-xl shadow-2xl border-b-4 border-blue-500 flex flex-col items-center justify-center">
+            <div class="text-center">
+                <p class="text-xl text-gray-400 font-semibold mb-3">이용 중</p>
+                <div id="called-list" class="flex flex-row gap-2 p-4 bg-gray-800 rounded-lg shadow-inner w-full min-h-[100px] items-center justify-center overflow-x-auto">
+                    <span id="called-empty-message" class="text-3xl font-semibold text-white">이용 중인 사람 없음</span>
+                </div>
+            </div>
+        </section>
+        <section class="lg:w-2/3 flex flex-col xl:flex-row gap-8">
+            <div class="xl:w-1/2 bg-gray-800 p-6 md:p-8 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-blue-300">현재 대기열 목록</h2>
+                <div id="queue-list-container">
+                    <ul id="queue-list" class="space-y-3">
+                        <li id="empty-message" class="text-lg text-gray-400 py-2">현재 대기 인원이 없습니다.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="xl:w-1/2 bg-gray-800 p-6 md:p-8 rounded-xl shadow-2xl">
+                <h2 class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-purple-300">고객 랭킹 (점수)</h2>
+                <div id="ranking-list-container">
+                    <ol id="ranking-list" class="space-y-3 list-decimal list-inside">
+                        <li id="ranking-empty-message" class="text-lg text-gray-400 py-2">랭킹 정보가 없습니다.</li>
+                    </ol>
+                </div>
+            </section>
+    </main>
+    <script>
+        const host = window.location.host;
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const websocketUrl = `${wsProtocol}//${host}/api/v1/queue/ws`;
+        const queueListElement = document.getElementById("queue-list");
+        const calledListElement = document.getElementById("called-list");
+        const calledEmptyMessage = document.getElementById("called-empty-message");
+        const totalWaitersElement = document.getElementById("total-waiters");
+        const emptyMessage = document.getElementById("empty-message");
+        const rankingListElement = document.getElementById("ranking-list");
+        const rankingEmptyMessage = document.getElementById("ranking-empty-message");
+        let ws;
+
+        function maskName(name) {
+            if (!name || name.length === 0) return '';
+            if (name.length === 1) return name + '*';
+            if (name.length === 2) return name[0] + '*';
+            return name[0] + '*'.repeat(name.length - 1);
+        }
+
+        function connectWebSocket() {
+            ws = new WebSocket(websocketUrl);
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.queue_list) { updateQueueDisplay(data.queue_list); }
+                if (data.ranking_list) { updateRankingDisplay(data.ranking_list); }
+            };
+            ws.onopen = () => console.log("WebSocket 연결 성공");
+            ws.onclose = (event) => { console.log('WebSocket 연결 종료. 재연결 시도...', event.reason); setTimeout(connectWebSocket, 3000); };
+            ws.onerror = (error) => { console.error("WebSocket 오류 발생:", error); ws.close(); };
+        }
+
+        function updateQueueDisplay(queueList) {
+            // '이용 중' 목록 업데이트
+            const calledUsers = queueList.filter(item => item.status === 'called');
+            calledListElement.innerHTML = '';
+
+            if (calledUsers.length === 0) {
+                calledEmptyMessage.style.display = 'block';
+                calledListElement.appendChild(calledEmptyMessage);
+            } else {
+                calledEmptyMessage.style.display = 'none';
+                // 최대 4개까지만 보여주도록 배열을 자릅니다.
+                calledUsers.slice(0, 4).forEach(item => {
+                    const span = document.createElement("span");
+                    span.className = "bg-gray-700 p-4 rounded-lg shadow-md text-center text-4xl md:text-5xl font-black text-white px-2 whitespace-nowrap";
+                    span.textContent = maskName(item.name);
+                    calledListElement.appendChild(span);
+                });
+            }
+
+            // '현재 대기열' 목록 업데이트
+            const waitingList = queueList.filter(item => item.status === 'waiting');
+            queueListElement.innerHTML = '';
+            totalWaitersElement.textContent = waitingList.length;
+
+            if (waitingList.length === 0) {
+                emptyMessage.style.display = 'block';
+            } else {
+                emptyMessage.style.display = 'none';
+                waitingList.forEach((item, index) => {
+                    const li = document.createElement("li");
+                    li.className = "flex justify-between items-center bg-gray-700 p-3 rounded-lg border-l-4 border-gray-500 hover:bg-gray-600 transition duration-150";
+                    li.innerHTML = `<span class="text-2xl font-bold text-yellow-300 w-1/6">${index + 1}.</span><span class="text-2xl w-5/6 truncate">${maskName(item.name)}</span>`;
+                    queueListElement.appendChild(li);
+                });
+            }
+        }
+
+        function updateRankingDisplay(rankingList) {
+            rankingListElement.innerHTML = '';
+            if (rankingList.length === 0) {
+                rankingEmptyMessage.style.display = 'block';
+            } else {
+                rankingEmptyMessage.style.display = 'none';
+                rankingList.forEach(item => {
+                    const li = document.createElement("li");
+                    li.className = "flex justify-between items-center text-lg md:text-xl p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition duration-150";
+                    li.innerHTML = `<span class="font-semibold text-white truncate">${item.name}</span><span class="text-yellow-400 font-bold ml-4 whitespace-nowrap">${item.score}점</span>`;
+                    rankingListElement.appendChild(li);
+                });
+            }
+        }
+        connectWebSocket();
+    </script>
+</body>
+</html>

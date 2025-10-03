@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <title>관리자 페이지</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1f2937; color: #f3f4f6; }
+        .status-waiting { border-left-color: #facc15; }
+        .status-called { border-left-color: #34d399; }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <header class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-blue-400 mb-2">대기열 관리</h1>
+        <p class="text-lg md:text-xl text-gray-300">실시간으로 대기열을 관리하세요.</p>
+    </header>
+    <main class="max-w-4xl mx-auto bg-gray-800 p-6 md:p-8 rounded-xl shadow-2xl">
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-blue-300">다음 순서 호출</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button onclick="callNext()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-150">
+                    다음 대기자 호출
+                </button>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-purple-300">고객 대기열</h2>
+            <div id="queue-list-container" class="max-h-96 overflow-y-auto">
+                <ul id="queue-list" class="space-y-3">
+                    <li class="text-lg text-gray-400 py-2">대기열 정보를 불러오는 중입니다...</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-green-300">대기자 수동 관리</h2>
+            <div class="flex flex-wrap gap-4">
+                <div id="register-section" class="flex-grow bg-gray-700 p-6 rounded-lg shadow-inner flex flex-col items-start space-y-4">
+                    <h3 class="text-lg font-bold text-gray-200">고객 등록</h3>
+                    <input type="text" id="register-name" placeholder="이름" class="w-full p-2 rounded bg-gray-600 border border-gray-500 placeholder-gray-400 text-white">
+                    <input type="text" id="register-phone" placeholder="전화번호" class="w-full p-2 rounded bg-gray-600 border border-gray-500 placeholder-gray-400 text-white">
+                    <button onclick="registerUser()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition duration-150">등록</button>
+                </div>
+                <div id="specific-call-section" class="flex-grow bg-gray-700 p-6 rounded-lg shadow-inner flex flex-col items-start space-y-4">
+                    <h3 class="text-lg font-bold text-gray-200">특정 고객 호출</h3>
+                    <input type="text" id="call-specific-phone" placeholder="전화번호" class="w-full p-2 rounded bg-gray-600 border border-gray-500 placeholder-gray-400 text-white">
+                    <button onclick="callSpecificUser()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 rounded-lg transition duration-150">호출</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const host = window.location.host;
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const websocketUrl = `${wsProtocol}//${host}/api/v1/queue/ws`;
+        const queueListElement = document.getElementById("queue-list");
+        const registerNameInput = document.getElementById("register-name");
+        const registerPhoneInput = document.getElementById("register-phone");
+        const callSpecificPhoneInput = document.getElementById("call-specific-phone");
+        let ws;
+
+        function connectWebSocket() {
+            ws = new WebSocket(websocketUrl);
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.queue_list) { updateQueueDisplay(data.queue_list); }
+            };
+            ws.onopen = () => console.log("WebSocket 연결 성공");
+            ws.onclose = (event) => { console.log('WebSocket 연결 종료. 재연결 시도...', event.reason); setTimeout(connectWebSocket, 3000); };
+            ws.onerror = (error) => { console.error("WebSocket 오류 발생:", error); ws.close(); };
+        }
+
+        async function registerUser() {
+            const name = registerNameInput.value;
+            const phone_number = registerPhoneInput.value;
+            if (!name || !phone_number) {
+                alert("이름과 전화번호를 모두 입력해주세요.");
+                return;
+            }
+            try {
+                const response = await fetch('/api/v1/queue/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, phone_number })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.detail || "등록 실패");
+                }
+                alert(result.message || "등록이 완료되었습니다.");
+                registerNameInput.value = '';
+                registerPhoneInput.value = '';
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function callNext() {
+            try {
+                const response = await fetch('/api/v1/queue/call-next', { method: 'POST' });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.detail || "호출 실패");
+                }
+                alert(result.message || "호출에 성공했습니다.");
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function callSpecificUser(phoneNumber) {
+            const phone_number = phoneNumber || callSpecificPhoneInput.value;
+            if (!phone_number) {
+                alert("전화번호를 입력해주세요.");
+                return;
+            }
+            try {
+                const response = await fetch(`/api/v1/queue/call-specific/${phone_number}`, { method: 'POST' });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.detail || "호출 실패");
+                }
+                alert(result.message || "호출에 성공했습니다.");
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function completeUser(phoneNumber) {
+            const score = prompt("고객 점수를 입력해주세요.");
+            if (score === null || isNaN(score)) {
+                alert("유효한 점수를 입력해야 합니다.");
+                return;
+            }
+            try {
+                const response = await fetch('/api/v1/queue/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: phoneNumber, score: parseInt(score) })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.detail || "완료 실패");
+                }
+                alert(result.message || "요청이 완료되었습니다.");
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function cancelUser(phoneNumber, userName) {
+            console.log("---------------------------------------");
+            console.log(`[취소] 요청 시작:`);
+            console.log(`- 이름: ${userName}`);
+            console.log(`- 전화번호: ${phoneNumber}`);
+
+            if (!phoneNumber) {
+                console.error("오류: 전화번호가 없어 취소 요청을 보낼 수 없습니다.");
+                alert("오류: 고객 정보에 전화번호가 누락되었습니다.");
+                return;
+            }
+
+            if (!confirm(`${userName}님을 대기열에서 취소하시겠습니까?`)) {
+                console.log("사용자에 의해 취소 요청이 중단되었습니다.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/queue/cancel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // phoneNumber와 함께 userName도 함께 전송하도록 수정
+                    body: JSON.stringify({ phone_number: phoneNumber, name: userName })
+                });
+
+                const result = await response.json();
+                console.log("서버 응답:", response.status, response.statusText);
+                console.log("서버 응답 본문:", result);
+
+                if (!response.ok) {
+                    throw new Error(result.detail || "취소 실패");
+                }
+
+                alert(result.message || "취소 요청이 성공했습니다.");
+            } catch (error) {
+                console.error("취소 요청 중 오류 발생:", error);
+                alert(`오류가 발생했습니다: ${error.message}`);
+            }
+            console.log("---------------------------------------");
+        }
+
+        function updateQueueDisplay(queueList) {
+            console.log("---------------------------------------");
+            console.log("WebSocket으로부터 대기열 데이터 수신:");
+            console.log(queueList);
+            console.log("---------------------------------------");
+
+            queueListElement.innerHTML = '';
+
+            if (queueList.length === 0) {
+                const li = document.createElement("li");
+                li.className = "text-lg text-gray-400 py-2";
+                li.textContent = "현재 대기 인원이 없습니다.";
+                queueListElement.appendChild(li);
+                return;
+            }
+
+            queueList.forEach((item, index) => {
+                const li = document.createElement("li");
+
+                let liClass = "flex justify-between items-center bg-gray-700 p-4 rounded-lg shadow hover:bg-gray-600 transition duration-150";
+                let nameClass = "text-2xl font-semibold";
+                let numberClass = "text-2xl font-bold";
+
+                if (item.status === 'called') {
+                    liClass += " status-called";
+                    nameClass += " text-green-300";
+                    numberClass += " text-green-300";
+                } else {
+                    liClass += " status-waiting";
+                    nameClass += " text-white";
+                    numberClass += " text-yellow-300";
+                }
+                li.className = liClass;
+
+                const userInfoDiv = document.createElement("div");
+                userInfoDiv.className = "flex items-center space-x-4";
+
+                const numberSpan = document.createElement("span");
+                numberSpan.className = numberClass;
+                numberSpan.textContent = `${index + 1}.`;
+
+                const nameSpan = document.createElement("span");
+                nameSpan.className = nameClass;
+                nameSpan.textContent = item.name;
+
+                userInfoDiv.appendChild(numberSpan);
+                userInfoDiv.appendChild(nameSpan);
+
+                const buttonDiv = document.createElement("div");
+                buttonDiv.className = "flex space-x-2";
+
+                if (item.status === 'waiting') {
+                    const callButton = document.createElement("button");
+                    callButton.className = "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded transition duration-150";
+                    callButton.textContent = "호출";
+                    callButton.onclick = () => callSpecificUser(item.phone_number);
+                    buttonDiv.appendChild(callButton);
+                }
+
+                const completeButton = document.createElement("button");
+                completeButton.className = "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-150";
+                completeButton.textContent = "완료";
+                completeButton.onclick = () => completeUser(item.phone_number);
+
+                const cancelButton = document.createElement("button");
+                cancelButton.className = "bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-150";
+                cancelButton.textContent = "취소";
+                cancelButton.onclick = () => cancelUser(item.phone_number, item.name);
+
+                buttonDiv.appendChild(completeButton);
+                buttonDiv.appendChild(cancelButton);
+
+                li.appendChild(userInfoDiv);
+                li.appendChild(buttonDiv);
+
+                queueListElement.appendChild(li);
+            });
+        }
+
+        connectWebSocket();
+    </script>
+</body>
+</html>
