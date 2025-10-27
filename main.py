@@ -1,39 +1,101 @@
-# main.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+# main_fixed.py
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Generator
 import json
 import sqlite3
 import time
-import os
 
 # CORS 미들웨어 임포트
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 # --- DB 설정 ---
-conn = sqlite3.connect("queue.db", check_same_thread=False)
-cursor = conn.cursor()
+DB_FILE = "queue.db"
 
-# 1. queue 테이블 (대기열 관리)
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        phone_number TEXT UNIQUE NOT NULL,
-        registered_at REAL NOT NULL,
-        status TEXT NOT NULL
-    )
-""")
 
-# 2. rankings 테이블 (점수 기반 랭킹 저장)
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS rankings (
-        name TEXT PRIMARY KEY,
-        score INTEGER NOT NULL DEFAULT 0
-    )
-""")
-conn.commit()
+def get_db_conn() -> Generator[sqlite3.Connection, None, None]:
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row  # 컬럼 이름으로 접근 가능하도록 설정
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+# 관리할 게임 목록
+GAMES = ["게임1", "게임2", "게임3", "게임4", "게임5"]
+
+
+# 마이그레이션: 앱 시작 전에 안전하게 마이그레이션 시도
+def try_migrate_rankings_schema():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(rankings)")
+        rows = cursor.fetchall()
+        cols = [row[1] for row in rows]
+        if cols and 'game' not in cols:
+            print("[DB MIGRATE] Detected old 'rankings' schema without 'game' column. Migrating...")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS rankings_new (
+                    name TEXT NOT NULL,
+                    game TEXT NOT NULL,
+                    score INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (name, game)
+                )
+            """)
+            default_game = GAMES[0]
+            try:
+                # 기존 데이터가 있다면 기본 게임으로 마이그레이션
+                cursor.execute("INSERT OR REPLACE INTO rankings_new (name, game, score) SELECT name, ?, score FROM rankings", (default_game,))
+            except Exception:
+                # 기존 테이블이 없거나 비어 있으면 무시
+                pass
+            cursor.execute("DROP TABLE IF EXISTS rankings")
+            cursor.execute("ALTER TABLE rankings_new RENAME TO rankings")
+            conn.commit()
+            print("[DB MIGRATE] Migration complete. Existing rankings moved to game=", default_game)
+        conn.close()
+    except Exception as e:
+        print("[DB MIGRATE] Migration check failed:", e)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 애플리케이션 시작 시
+    print("Application startup: Initializing database...")
+    # 마이그레이션 먼저 시도
+    try_migrate_rankings_schema()
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # 1. queue 테이블 (대기열 관리)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone_number TEXT UNIQUE NOT NULL,
+            registered_at REAL NOT NULL,
+            status TEXT NOT NULL
+        )
+    """)
+    # 2. rankings 테이블 (점수 기반 랭킹 저장)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rankings (
+            name TEXT NOT NULL,
+            game TEXT NOT NULL,
+            score INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (name, game)
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print("Database initialized.")
+    yield
+    # 애플리케이션 종료 시
+    print("Application shutdown.")
 
 
 # --- Pydantic 모델 ---
@@ -53,65 +115,102 @@ class QueueData(BaseModel):
 class CompleteData(BaseModel):
     phone_number: str
     score: int
+    game: str
 
 
 class RankingEntry(BaseModel):
     name: str
     score: int
+    game: Optional[str] = None
 
 
 # --- FastAPI 앱 및 WebSocket 관리자 ---
-app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
+app = FastAPI(lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
-# CORS 미들웨어 설정
+# CORS 미들웨어 설정 (개발용: 실제 배포 시 도메인 제한 권장)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 도메인 허용
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # 모든 HTTP 메서드 허용
-    allow_headers=["*"],  # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        # store dicts: {"ws": WebSocket, "mode": "full"|"queue"}
+        self.active_connections: List[Dict[str, object]] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        mode = websocket.query_params.get("mode", "full")
+        self.active_connections.append({"ws": websocket, "mode": mode})
+        return mode
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        # remove the connection dict matching websocket
+        self.active_connections = [c for c in self.active_connections if c.get("ws") is not websocket]
 
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
+    async def broadcast(self, db_conn: sqlite3.Connection):
+        # prepare full data once
+        full_data = get_queue_data(db_conn)
+        for conn_info in list(self.active_connections):
+            ws: WebSocket = conn_info.get("ws")
+            mode = conn_info.get("mode", "full")
+            try:
+                if mode == "queue":
+                    # send only queue_list
+                    payload = json.dumps({"queue_list": full_data.get("queue_list", [])})
+                else:
+                    payload = json.dumps(full_data)
+                await ws.send_text(payload)
+            except Exception as e:
+                # on error, remove connection
+                try:
+                    self.disconnect(ws)
+                except Exception:
+                    pass
+                print(f"WebSocket send error: {e}")
 
 
 manager = ConnectionManager()
 
 
 # --- 헬퍼 함수: 현재 대기열 및 랭킹 데이터 조회 ---
-def get_queue_data():
+def get_queue_data(conn: sqlite3.Connection):
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT id, name, phone_number, registered_at, status FROM queue WHERE status IN ('waiting', 'called') ORDER BY registered_at ASC")
     queue_rows = cursor.fetchall()
-    queue_list = [QueueEntry(id=row[0], name=row[1], phone_number=row[2], registered_at=row[3], status=row[4]) for row
-                  in queue_rows]
+    # sqlite3.Row -> dict 변환
+    queue_list = [QueueEntry(**dict(row)) for row in queue_rows]
 
-    cursor.execute("SELECT name, score FROM rankings ORDER BY score DESC LIMIT 5")
-    ranking_rows = cursor.fetchall()
-    ranking_list = [RankingEntry(name=row[0], score=row[1]) for row in ranking_rows]
+    # 게임별 상위 5명 랭킹을 반환
+    ranking_dict = {}
+    for game in GAMES:
+        cursor.execute("SELECT name, score FROM rankings WHERE game = ? ORDER BY score DESC LIMIT 5", (game,))
+        ranking_rows = cursor.fetchall()
+        ranking_list = [RankingEntry(name=row["name"], score=row["score"], game=game) for row in ranking_rows]
+        ranking_dict[game] = [r.model_dump() for r in ranking_list]
 
     return {
         "queue_list": [q.model_dump() for q in queue_list],
-        "ranking_list": [r.model_dump() for r in ranking_list]
+        "ranking_list": ranking_dict
     }
+
 
 @app.get('/')
 def root():
     return FileResponse("clients/not_found.html")
+
+
+# --- API 엔드포인트: 게임 목록 ---
+@app.get("/api/v1/games")
+async def get_games():
+    """사용 가능한 게임 목록을 반환합니다."""
+    return {"games": GAMES}
+
 
 # --- HTML 파일 서빙 엔드포인트 ---
 @app.get("/admin")
@@ -121,7 +220,12 @@ async def get_admin():
 
 @app.get("/display")
 async def get_display():
-    return FileResponse("clients/display.html")
+    return FileResponse("clients/display_queue_page.html")
+
+
+@app.get("/ranking")
+async def get_ranking_page():
+    return FileResponse("clients/display_ranking_page.html")
 
 
 @app.get("/cancel")
@@ -129,25 +233,31 @@ async def get_cancel():
     return FileResponse("clients/cancel.html")
 
 
+@app.get("/register")
+async def get_register():
+    return FileResponse("clients/register.html")
+
 # --- API 엔드포인트 ---
 @app.post("/api/v1/queue/register", response_model=QueueEntry)
-async def register_user(queue_data: QueueData):
+async def register_user(queue_data: QueueData, conn: sqlite3.Connection = Depends(get_db_conn)):
     try:
+        cursor = conn.cursor()
+        registered_at = time.time()
         cursor.execute("INSERT INTO queue (name, phone_number, registered_at, status) VALUES (?, ?, ?, ?)",
-                       (queue_data.name, queue_data.phone_number, time.time(), "waiting"))
+                       (queue_data.name, queue_data.phone_number, registered_at, "waiting"))
         conn.commit()
         last_id = cursor.lastrowid
-
-        await manager.broadcast(json.dumps(get_queue_data()))
+        await manager.broadcast(conn)
 
         return QueueEntry(id=last_id, name=queue_data.name, phone_number=queue_data.phone_number,
-                          registered_at=time.time(), status="waiting")
+                          registered_at=registered_at, status="waiting")
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=400, detail="이미 등록된 전화번호입니다.")
 
 
 @app.post("/api/v1/queue/call-next")
-async def call_next_user():
+async def call_next_user(conn: sqlite3.Connection = Depends(get_db_conn)):
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT id, name, phone_number FROM queue WHERE status = 'waiting' ORDER BY registered_at ASC LIMIT 1")
     user = cursor.fetchone()
@@ -155,74 +265,93 @@ async def call_next_user():
     if not user:
         raise HTTPException(status_code=404, detail="대기 중인 사용자가 없습니다.")
 
-    user_id, user_name, phone_number = user
+    user_id, user_name, phone_number = user["id"], user["name"], user["phone_number"]
     cursor.execute("UPDATE queue SET status = ? WHERE id = ?", ("called", user_id))
     conn.commit()
 
-    await manager.broadcast(json.dumps(get_queue_data()))
+    await manager.broadcast(conn)
 
     return {"called_user_name": user_name, "phone_number": phone_number}
 
 
 @app.post("/api/v1/queue/call-specific/{phone_number}")
-async def call_specific_user(phone_number: str):
+async def call_specific_user(phone_number: str, conn: sqlite3.Connection = Depends(get_db_conn)):
+    cursor = conn.cursor()
     cursor.execute("SELECT id, name FROM queue WHERE phone_number = ?", (phone_number,))
     user = cursor.fetchone()
 
     if not user:
         raise HTTPException(status_code=404, detail=f"전화번호 '{phone_number}'에 해당하는 사용자가 없습니다.")
 
-    user_id, user_name = user
+    user_id, user_name = user["id"], user["name"]
     cursor.execute("UPDATE queue SET status = ? WHERE id = ?", ("called", user_id))
     conn.commit()
 
-    await manager.broadcast(json.dumps(get_queue_data()))
+    await manager.broadcast(conn)
 
     return {"called_user_name": user_name, "phone_number": phone_number}
 
 
 @app.post("/api/v1/queue/complete")
-async def complete_user(complete_data: CompleteData):
+async def complete_user(complete_data: CompleteData, conn: sqlite3.Connection = Depends(get_db_conn)):
+    cursor = conn.cursor()
     cursor.execute("SELECT name FROM queue WHERE phone_number = ?", (complete_data.phone_number,))
     user = cursor.fetchone()
 
     if not user:
         raise HTTPException(status_code=404, detail=f"전화번호 '{complete_data.phone_number}'에 해당하는 사용자가 없습니다.")
 
-    user_name = user[0]
+    user_name = user["name"]
     cursor.execute("DELETE FROM queue WHERE phone_number = ?", (complete_data.phone_number,))
 
-    cursor.execute("INSERT OR REPLACE INTO rankings (name, score) VALUES (?, ?)", (user_name, complete_data.score))
+    # game 값이 유효한지 확인
+    game = complete_data.game
+    if game not in GAMES:
+        raise HTTPException(status_code=400, detail=f"유효하지 않은 게임입니다. 허용된 값: {GAMES}")
+
+    # 게임별로 순위를 저장 (동일한 name+game 키를 사용)
+    # 현재 동작: 동일한 (name, game) 키가 있으면 덮어씀. 필요하면 점수가 더 높은 경우만 업데이트하도록 변경 가능.
+    cursor.execute(
+        "INSERT OR REPLACE INTO rankings (name, game, score) VALUES (?, ?, ?)",
+        (user_name, game, complete_data.score)
+    )
     conn.commit()
 
-    await manager.broadcast(json.dumps(get_queue_data()))
+    await manager.broadcast(conn)
 
-    return {"message": f"'{user_name}'님의 서비스가 완료되고, 점수({complete_data.score})가 반영되었습니다."}
+    return {"message": f"'{user_name}'님의 서비스가 완료되고, 게임({game}) 점수({complete_data.score})가 반영되었습니다."}
 
 
 @app.post("/api/v1/queue/cancel")
-async def cancel_user(queue_data: QueueData):
+async def cancel_user(queue_data: QueueData, conn: sqlite3.Connection = Depends(get_db_conn)):
+    cursor = conn.cursor()
     cursor.execute("SELECT name FROM queue WHERE phone_number = ?", (queue_data.phone_number,))
     user = cursor.fetchone()
 
     if not user:
         raise HTTPException(status_code=404, detail=f"전화번호 '{queue_data.phone_number}'에 해당하는 사용자가 없습니다.")
 
-    user_name = user[0]
+    user_name = user["name"]
     cursor.execute("DELETE FROM queue WHERE phone_number = ?", (queue_data.phone_number,))
     conn.commit()
 
-    await manager.broadcast(json.dumps(get_queue_data()))
+    await manager.broadcast(conn)
 
     return {"message": f"'{user_name}'님의 대기열 등록이 취소되었습니다."}
 
 
 @app.websocket("/api/v1/queue/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, conn: sqlite3.Connection = Depends(get_db_conn)):
+    mode = await manager.connect(websocket)
     try:
-        await websocket.send_text(json.dumps(get_queue_data()))
+        # send initial payload according to mode
+        initial_data = get_queue_data(conn)
+        if mode == "queue":
+            await websocket.send_text(json.dumps({"queue_list": initial_data.get("queue_list", [])}))
+        else:
+            await websocket.send_text(json.dumps(initial_data))
         while True:
+            # keep the socket open; we don't expect incoming messages
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

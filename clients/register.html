@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko">
   <head>
-    <title>💀 유령 대기열 취소</title>
+    <title>🎃 유령 대기열 등록</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link
@@ -23,8 +23,8 @@
         min-height: 100vh;
         padding: 20px;
         /* 배경 패턴 추가 */
-        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path fill="%23333333" d="M30 0l20 20l-20 20l-20-20zM70 0l20 20l-20 20l-20-20zM30 60l20 20l-20 20l-20-20zM70 60l20 20l-20 20l-20-20z"/><path fill="%2222222" d="M10 30l20 20l-20 20l-20-20zM50 30l20 20l-20 20l-20-20zM10 90l20 20l-20 20l-20-20zM50 90l20 20l-20 20l-20-20z"/></svg>');
-        background-size: 40px 40px;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="%23333333" opacity="0.1"/><circle cx="50" cy="50" r="20" fill="none" stroke="%23333333" stroke-width="1" opacity="0.05"/></svg>');
+        background-size: 20px 20px;
       }
 
       /* Creepster 폰트를 제목에 사용 */
@@ -32,24 +32,21 @@
         font-family: "Creepster", cursive;
       }
 
-      /* 할로윈 색상 팔레트 정의 */
-      .bg-spooky-purple {
-        background-color: #6b21a8;
-      } /* Dark Purple */
-      .hover\:bg-spooky-dark-purple:hover {
-        background-color: #581c87;
+      /* 주황색 테마 색상 정의 */
+      .bg-halloween-orange {
+        background-color: #ff7800;
       }
-      .focus\:ring-spooky-purple:focus {
-        --tw-ring-color: #6b21a8;
+      .text-halloween-orange {
+        color: #ff7800;
       }
-
-      .bg-spooky-red {
-        background-color: #991b1b;
-      } /* Dark Red */
-      .text-spooky-red {
-        color: #991b1b;
+      .hover\:bg-halloween-dark-orange:hover {
+        background-color: #e66b00;
+      }
+      .focus\:ring-halloween-orange:focus {
+        --tw-ring-color: #ff7800;
       }
 
+      /* 네온 그린 성공 색상 정의 */
       .bg-neon-green {
         background-color: #ccff00;
       }
@@ -60,8 +57,8 @@
       /* 할로윈 박스 스타일 */
       .halloween-box {
         background-color: #333333; /* Darker grey for card */
-        border: 3px solid #991b1b; /* Dark Red border */
-        box-shadow: 0 0 30px rgba(153, 27, 27, 0.5); /* Red glow */
+        border: 3px solid #8a2be2; /* Purple border */
+        box-shadow: 0 0 30px rgba(138, 43, 226, 0.5); /* Purple glow */
       }
     </style>
   </head>
@@ -75,10 +72,11 @@
               spooky: ["Creepster", "cursive"],
             },
             colors: {
-              "spooky-red": "#991b1b",
-              "spooky-dark-red": "#6a0505",
-              "spooky-purple": "#6b21a8",
+              "halloween-orange": "#ff7800",
+              "halloween-dark-orange": "#e66b00",
               "neon-green": "#ccff00",
+              "spooky-purple": "#8a2be2",
+              "spooky-red": "#6a0505",
             },
           },
         },
@@ -89,19 +87,19 @@
       class="halloween-box p-8 md:p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center transform transition duration-500 hover:scale-[1.02]"
     >
       <h1
-        class="text-4xl md:text-5xl font-extrabold text-spooky-red mb-6 spooky-font flex items-center justify-center gap-3"
+        class="text-4xl md:text-5xl font-extrabold text-halloween-orange mb-6 spooky-font flex items-center justify-center gap-3"
       >
-        <i class="fas fa-skull text-spooky-red"></i> 대기 파괴
-        <i class="fas fa-bomb text-spooky-purple"></i>
+        <i class="fas fa-ghost text-spooky-purple"></i> 유령 등록부
+        <i class="fas fa-pumpkin text-halloween-orange"></i>
       </h1>
 
-      <form id="cancel-form" class="flex flex-col gap-4">
+      <form id="register-form" class="flex flex-col gap-4">
         <div>
           <label
             for="name"
             class="block text-left text-neon-green font-bold mb-2 text-lg"
           >
-            <i class="fas fa-user-slash"></i> 유령 이름:
+            <i class="fas fa-user-secret"></i> 이름:
           </label>
           <input
             type="text"
@@ -109,7 +107,7 @@
             name="name"
             required
             class="w-full p-4 rounded-xl bg-gray-600 text-white placeholder-gray-400 border border-spooky-purple focus:outline-none focus:ring-4 focus:ring-spooky-purple transition-shadow"
-            placeholder="등록 시 사용한 이름"
+            placeholder="으스스한 이름"
           />
         </div>
         <div>
@@ -117,24 +115,26 @@
             for="phone_number"
             class="block text-left text-neon-green font-bold mb-2 text-lg"
           >
-            <i class="fas fa-key"></i> 비밀 주문 (전화번호):
+            <i class="fas fa-magic"></i> 전화번호:
           </label>
           <input
             type="tel"
             id="phone_number"
             name="phone_number"
             required
-            pattern="[0-9]*"
+            pattern="[0-9]{11}"
+            maxlength="11"
             class="w-full p-4 rounded-xl bg-gray-600 text-white placeholder-gray-400 border border-spooky-purple focus:outline-none focus:ring-4 focus:ring-spooky-purple transition-shadow"
-            placeholder="01012345678 (숫자만)"
+            placeholder="01012345678 (숫자 11자리)"
+            title="전화번호는 숫자 11자리만 입력 가능합니다. (예: 01012345678)"
           />
         </div>
         <button
           type="submit"
-          id="cancel-button"
-          class="w-full mt-6 p-4 rounded-3xl bg-spooky-red text-white font-extrabold text-xl hover:bg-spooky-dark-red transform hover:scale-[1.05] transition-all shadow-lg"
+          id="register-button"
+          class="w-full mt-6 p-4 rounded-3xl bg-halloween-orange text-gray-900 font-extrabold text-xl hover:bg-halloween-dark-orange transform hover:scale-[1.05] transition-all shadow-lg"
         >
-          <i class="fas fa-trash-alt"></i> 대기열에서 탈출하기
+          <i class="fas fa-hat-wizard"></i> 등록하고 대기하기
         </button>
       </form>
 
@@ -145,28 +145,46 @@
     </div>
 
     <script>
-      const cancelForm = document.getElementById("cancel-form");
+      const registerForm = document.getElementById("register-form");
       const statusMessage = document.getElementById("status-message");
+      const phoneNumberInput = document.getElementById("phone_number"); // 새로 추가
 
       // API BASE URL을 동적으로 설정합니다.
       const API_BASE_URL =
         window.location.protocol + "//" + window.location.host + "/api/v1";
 
-      cancelForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const name = document.getElementById("name").value;
-        // 전화번호에서 숫자가 아닌 모든 문자 제거 (필요하다면)
-        const phoneNumber = document
-          .getElementById("phone_number")
-          .value.replace(/[^0-9]/g, "");
+      registerForm.addEventListener("submit", async (event) => {
+        event.preventDefault(); // 기본 폼 제출 방지
 
-        // 메시지 초기화
-        statusMessage.textContent = "저주를 해제 중...";
+        // 브라우저 기본 유효성 검사 (required, pattern)를 통과했는지 다시 확인
+        if (!registerForm.checkValidity()) {
+          // 브라우저가 기본 오류 메시지를 표시하므로 별도의 메시지는 필요 없을 수 있으나,
+          // 사용자 정의 오류 메시지를 표시하고 싶다면 아래 코드를 사용합니다.
+          // showError('💀 전화번호가 유효하지 않습니다. (숫자 11자리)');
+          return;
+        }
+
+        const name = document.getElementById("name").value;
+        // 전화번호에서 숫자가 아닌 모든 문자 제거
+        const rawPhoneNumber = phoneNumberInput.value.replace(/[^0-9]/g, "");
+        const phoneNumber = rawPhoneNumber; // 이미 pattern="[0-9]{11}"로 숫자 11자리만 들어오게 제한됨
+
+        // ✅ JS에서 한 번 더 길이 체크 (이중 확인)
+        if (phoneNumber.length !== 11) {
+          statusMessage.textContent =
+            "💀 등록 실패: 전화번호는 정확히 숫자 11자리여야 합니다.";
+          statusMessage.className =
+            "mt-6 p-3 rounded-xl font-extrabold text-lg bg-spooky-red text-white transition-colors shadow-lg shadow-spooky-red/50 min-h-12";
+          return; // 길이가 맞지 않으면 등록을 막음
+        }
+
+        // 메시지 초기화 및 로딩 표시
+        statusMessage.textContent = "등록 마법을 시전 중...";
         statusMessage.className =
           "mt-6 p-3 rounded-xl font-bold text-lg bg-gray-600 text-white transition-colors min-h-12";
 
         try {
-          const response = await fetch(API_BASE_URL + "/queue/cancel", {
+          const response = await fetch(API_BASE_URL + "/queue/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: name, phone_number: phoneNumber }),
@@ -176,14 +194,14 @@
 
           if (response.ok) {
             // 성공 시: 네온 그린 배경, 어두운 텍스트
-            statusMessage.textContent = `✨ 해제 완료! 대기열에서 벗어났습니다.`;
+            statusMessage.textContent = `✨ 등록 완료! 대기번호: ${data.id}, 이름: ${data.name}`;
             statusMessage.className =
               "mt-6 p-3 rounded-xl font-extrabold text-lg bg-neon-green text-gray-900 transition-colors shadow-lg shadow-neon-green/50 min-h-12";
-            cancelForm.reset();
+            registerForm.reset();
           } else {
             // 실패 시: 으스스한 빨간색 배경, 흰색 텍스트
-            statusMessage.textContent = `💀 해제 실패: ${
-              data.detail || "등록된 유령이 아니거나 정보가 일치하지 않습니다."
+            statusMessage.textContent = `💀 등록 실패: ${
+              data.detail || "알 수 없는 저주"
             }`;
             statusMessage.className =
               "mt-6 p-3 rounded-xl font-extrabold text-lg bg-spooky-red text-white transition-colors shadow-lg shadow-spooky-red/50 min-h-12";
