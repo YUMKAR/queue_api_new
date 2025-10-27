@@ -159,6 +159,10 @@
           listEl.innerHTML = "";
           const gameRanking = rankingData[game] || [];
 
+          // 🚨 수정: 점수(score)를 기준으로 내림차순 정렬
+          // JavaScript 객체는 순서를 보장하지 않으므로, 화면에 표시하기 전에 다시 정렬합니다.
+          gameRanking.sort((a, b) => b.score - a.score);
+
           if (gameRanking.length === 0) {
             const empty = document.createElement("li");
             empty.className = "text-lg text-gray-400 py-2 text-center";
@@ -173,8 +177,8 @@
 
               // 1, 2, 3등 강조 스타일
               let rankIcon = "";
-              let rankNameClass = "text-text";
-              let scoreClass = "score-text";
+              let rankNameClass = "text-text"; // 기본 클래스
+              let scoreClass = "score-text"; // 기본 클래스
 
               if (index === 0) {
                 rankIcon = '<i class="fas fa-crown text-neon-green mr-2"></i>';

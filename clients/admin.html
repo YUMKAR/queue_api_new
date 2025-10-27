@@ -17,6 +17,17 @@
       .status-called {
         border-left-color: #34d399; /* Green */
       }
+      /* 스크롤바 스타일 */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #374151;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #6b7280;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body class="p-6 md:p-10">
@@ -133,6 +144,54 @@
           </div>
         </div>
       </section>
+
+      <!-- 🚨 추가: 전체 랭킹 관리 섹션 -->
+      <section class="mt-8">
+        <h2
+          class="text-2xl font-bold border-b border-gray-600 pb-3 mb-4 text-yellow-300"
+        >
+          전체 랭킹 관리
+        </h2>
+        <div class="flex justify-end mb-4">
+          <button
+            onclick="loadAllRankings()"
+            class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition duration-150"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 inline-block mr-1"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V4a1 1 0 011-1zm10 8a1 1 0 011-1v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 111.885-.666A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V4a1 1 0 011-1z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            새로고침
+          </button>
+        </div>
+        <div
+          class="hidden sm:grid grid-cols-12 text-sm font-semibold text-gray-400 py-2 border-b border-gray-600"
+        >
+          <span class="col-span-1">#</span>
+          <span class="col-span-4">이름</span>
+          <span class="col-span-3">게임</span>
+          <span class="col-span-2">점수</span>
+          <span class="col-span-2 text-right">관리</span>
+        </div>
+        <div
+          id="all-rankings-container"
+          class="max-h-96 overflow-y-auto custom-scrollbar"
+        >
+          <ul id="all-rankings-list" class="space-y-3">
+            <li class="text-lg text-gray-400 py-2">
+              랭킹 정보를 불러오는 중입니다...
+            </li>
+          </ul>
+        </div>
+      </section>
     </main>
 
     <script>
@@ -149,6 +208,8 @@
       const callSpecificPhoneInput = document.getElementById(
         "call-specific-phone"
       );
+      const allRankingsListElement =
+        document.getElementById("all-rankings-list");
       let ws;
 
       // 🚨 수정: 서버에서 동적으로 로드할 게임 목록 변수
@@ -182,6 +243,7 @@
             const data = JSON.parse(event.data);
             if (data.queue_list) {
               updateQueueDisplay(data.queue_list);
+              loadAllRankings(); // 랭킹 데이터도 함께 갱신
             }
           } catch (e) {
             console.error("WebSocket 데이터 처리 오류:", e);
@@ -415,6 +477,97 @@
       }
 
       /**
+       * 🚨 추가: 모든 랭킹 정보를 불러와 화면에 표시합니다.
+       */
+      async function loadAllRankings() {
+        try {
+          const response = await fetch(`${API_BASE_URL}/rankings/all`);
+          if (!response.ok) {
+            throw new Error("전체 랭킹 로드 실패");
+          }
+          const rankings = await response.json();
+          updateAllRankingsDisplay(rankings);
+        } catch (error) {
+          console.error("전체 랭킹 로드 오류:", error);
+          allRankingsListElement.innerHTML = `<li class="text-lg text-red-400 py-2">랭킹 정보를 불러오는 데 실패했습니다.</li>`;
+        }
+      }
+
+      /**
+       * 🚨 추가: 랭킹 목록을 받아 화면에 그립니다.
+       */
+      function updateAllRankingsDisplay(rankings) {
+        allRankingsListElement.innerHTML = "";
+        if (rankings.length === 0) {
+          allRankingsListElement.innerHTML = `<li class="text-lg text-gray-400 py-2">등록된 랭킹이 없습니다.</li>`;
+          return;
+        }
+
+        rankings.forEach((item, index) => {
+          const li = document.createElement("li");
+          li.className =
+            "grid grid-cols-12 gap-2 sm:gap-4 items-center bg-gray-700 p-3 rounded-lg shadow";
+
+          li.innerHTML = `
+            <div class="col-span-1 text-base font-bold">${index + 1}</div>
+            <div class="col-span-4 text-base font-semibold truncate">${
+              item.name
+            }</div>
+            <div class="col-span-3 text-sm text-gray-300 truncate">${
+              item.game
+            }</div>
+            <div class="col-span-2 text-base font-bold text-yellow-300">${
+              item.score
+            }</div>
+          `;
+
+          const buttonDiv = document.createElement("div");
+          buttonDiv.className = "col-span-2 flex justify-end";
+
+          const deleteButton = document.createElement("button");
+          deleteButton.className =
+            "bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded transition duration-150";
+          deleteButton.textContent = "삭제";
+          deleteButton.onclick = () =>
+            deleteRanking(item.name, item.game, item.score);
+
+          buttonDiv.appendChild(deleteButton);
+          li.appendChild(buttonDiv);
+          allRankingsListElement.appendChild(li);
+        });
+      }
+
+      /**
+       * 🚨 추가: 특정 랭킹 항목을 삭제합니다.
+       */
+      async function deleteRanking(name, game, score) {
+        if (
+          !confirm(
+            `'${name}'님의 '${game}' 랭킹(점수: ${score})을 정말 삭제하시겠습니까?`
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/rankings`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, game, score }),
+          });
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.detail || "랭킹 삭제 실패");
+          }
+          alert(result.message);
+          loadAllRankings(); // 목록 새로고침
+        } catch (error) {
+          alert(`랭킹 삭제 오류: ${error.message}`);
+        }
+      }
+
+      /**
        * WebSocket 데이터를 받아 대기열 목록을 화면에 업데이트합니다.
        * 전화번호를 포함하여 표시하도록 수정되었습니다.
        */
@@ -509,6 +662,7 @@
       // 🚨 앱 시작 시 게임 목록을 먼저 로드하고 WebSocket 연결 시작
       loadGames().then(() => {
         connectWebSocket();
+        loadAllRankings(); // 랭킹 목록도 함께 로드
       });
     </script>
   </body>

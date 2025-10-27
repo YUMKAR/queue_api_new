@@ -124,6 +124,12 @@ class RankingEntry(BaseModel):
     game: Optional[str] = None
 
 
+class FullRankingEntry(BaseModel):
+    name: str
+    score: int
+    game: str
+
+
 # --- FastAPI 앱 및 WebSocket 관리자 ---
 app = FastAPI(lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -357,3 +363,38 @@ async def websocket_endpoint(websocket: WebSocket, conn: sqlite3.Connection = De
         manager.disconnect(websocket)
     except Exception as e:
         print(f"WebSocket Error: {e}")
+
+
+@app.get("/api/v1/rankings/all", response_model=List[FullRankingEntry])
+async def get_all_rankings(conn: sqlite3.Connection = Depends(get_db_conn)):
+    """
+    'rankings' 테이블의 모든 기록을 조회합니다.
+    """
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, game, score FROM rankings ORDER BY game, score DESC")
+    ranking_rows = cursor.fetchall()
+    return [FullRankingEntry(**dict(row)) for row in ranking_rows]
+
+
+@app.delete("/api/v1/rankings")
+async def delete_ranking_entry(entry: FullRankingEntry, conn: sqlite3.Connection = Depends(get_db_conn)):
+    """
+    특정 사용자의 특정 게임 랭킹 기록을 삭제합니다.
+    """
+    cursor = conn.cursor()
+    # 항목이 존재하는지 먼저 확인
+    cursor.execute("SELECT 1 FROM rankings WHERE name = ? AND game = ? AND score = ?", (entry.name, entry.game, entry.score))
+    if not cursor.fetchone():
+        raise HTTPException(status_code=404, detail="삭제할 랭킹 항목을 찾을 수 없습니다.")
+
+    cursor.execute("DELETE FROM rankings WHERE name = ? AND game = ? AND score = ?", (entry.name, entry.game, entry.score))
+    conn.commit()
+
+    # 랭킹이 변경되었으므로 모든 클라이언트에 브로드캐스트
+    await manager.broadcast(conn)
+
+    return {"message": f"'{entry.name}'님의 '{entry.game}' 랭킹 기록(점수: {entry.score})이 삭제되었습니다."}
+
+
+# 이전 /api/v1/queue/all 엔드포인트는 삭제합니다.
+# 'completed' 상태는 queue 테이블에 존재하지 않기 때문입니다.
