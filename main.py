@@ -25,7 +25,7 @@ def get_db_conn() -> Generator[sqlite3.Connection, None, None]:
 
 
 # 관리할 게임 목록
-GAMES = ["게임1", "게임2", "게임3", "게임4", "게임5"]
+GAMES = ["1","2","3","4","5"]
 
 
 # 마이그레이션: 앱 시작 전에 안전하게 마이그레이션 시도
@@ -222,6 +222,10 @@ async def get_games():
 @app.get("/admin")
 async def get_admin():
     return FileResponse("clients/admin.html")
+
+@app.get("/ranking/admin")
+async def get_admin():
+    return FileResponse("clients/all_ranking.html")
 
 
 @app.get("/display")

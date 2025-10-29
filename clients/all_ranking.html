@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <title>랭킹 관리 페이지</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* 공통 스타일 */
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #1f2937;
+        color: #f3f4f6;
+      }
+      /* 스크롤바 스타일 */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #374151;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #6b7280;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body class="p-6 md:p-10">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <header class="text-center mb-8">
+      <h1 class="text-3xl md:text-4xl font-extrabold text-yellow-400 mb-2">
+        🏆 게임별 랭킹 관리
+      </h1>
+      <p class="text-lg md:text-xl text-gray-300">
+        각 게임의 최고 점수 기록을 확인하고 관리하세요.
+      </p>
+    </header>
+    <main
+      class="max-w-7xl mx-auto bg-gray-800 p-6 md:p-8 rounded-xl shadow-2xl"
+    >
+      <section class="mt-8">
+        <div class="flex justify-between items-center mb-4">
+          <p class="text-gray-400 text-sm">
+            ※ 점수는 내림차순, 순위는 오름차순으로 표시됩니다.
+          </p>
+          <button
+            onclick="loadAllRankings()"
+            class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition duration-150"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 inline-block mr-1"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V4a1 1 0 011-1zm10 8a1 1 0 011-1v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 111.885-.666A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V4a1 1 0 011-1z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            새로고침
+          </button>
+        </div>
+
+        <div
+          id="game-rankings-container"
+          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"
+        >
+          <div class="text-lg text-gray-400 py-2 col-span-full">
+            게임 목록을 불러오는 중입니다...
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // API BASE URL을 동적으로 설정합니다.
+      const API_BASE_URL =
+        window.location.protocol + "//" + window.location.host + "/api/v1";
+
+      // 🚨 추가: API에서 오는 string key와 실제 표시할 이름을 매핑하는 객체
+      const GAME_NAMES = {
+        "1": "EggTime",
+        "2": "Pink O Park",
+        "3": "Defend & Destroy",
+        "4": "끝까지 막아라!",
+        "5": "피해보던가!",
+        // API에서 새로운 게임 ID가 추가되면 여기에 대응하는 이름을 추가해야 합니다.
+      };
+
+      let GAMES = []; // API에서 받아온 key 값 (예: "1", "2", "3") 목록
+      const gameRankingsContainer = document.getElementById(
+        "game-rankings-container"
+      );
+
+      /**
+       * 게임 ID(string key)를 사용자 친화적인 이름으로 변환합니다.
+       * @param {string} gameId - API에서 받은 게임 ID ("1", "2", "3" 등)
+       * @returns {string} 사용자 친화적인 게임 이름
+       */
+      function getGameDisplayName(gameId) {
+        // 매핑된 이름이 있으면 그 이름을 반환하고, 없으면 ID 자체를 반환
+        return GAME_NAMES[gameId] || `Game ${gameId}`;
+      }
+
+      /**
+       * 서버에서 게임 목록을 불러와 GAMES 변수를 업데이트하고 랭킹 컨테이너를 생성합니다.
+       */
+      async function loadGames() {
+        try {
+          const response = await fetch(`${API_BASE_URL}/games`);
+          if (!response.ok) {
+            throw new Error("게임 목록 로드 실패");
+          }
+          const data = await response.json();
+          GAMES = data.games || [];
+          console.log("게임 목록 로드 완료:", GAMES);
+
+          // 게임 목록 로드 후 랭킹 섹션 UI 생성 및 데이터 로드 시작
+          createGameRankingSections();
+          loadAllRankings();
+        } catch (error) {
+          console.error("게임 목록을 로드하는 중 오류 발생:", error);
+          gameRankingsContainer.innerHTML = `<div class="text-lg text-red-400 py-2 col-span-full">
+              ⚠️ 게임 목록을 불러오는 데 실패했습니다. 서버 상태를 확인하세요.
+            </div>`;
+        }
+      }
+
+      /**
+       * GAMES 목록을 기반으로 게임별 랭킹 섹션 HTML을 생성합니다.
+       */
+      function createGameRankingSections() {
+        gameRankingsContainer.innerHTML = "";
+        if (GAMES.length === 0) {
+          gameRankingsContainer.innerHTML = `<div class="text-lg text-red-400 py-2 col-span-full">
+                게임 목록이 비어있습니다.
+              </div>`;
+          return;
+        }
+
+        // 🚨 수정: getGameDisplayName 함수를 사용하여 섹션 제목을 설정
+        GAMES.forEach((gameId) => {
+          const section = document.createElement("div");
+          section.className =
+            "bg-gray-700 p-4 rounded-lg shadow-xl flex flex-col h-full";
+
+          const displayName = getGameDisplayName(gameId); // 사용자 친화적 이름 사용
+
+          section.innerHTML = `
+                  <h3 class="text-xl font-bold text-yellow-400 mb-3 border-b border-gray-600 pb-2">
+                      ${displayName}
+                  </h3>
+                  <div class="flex-none grid grid-cols-5 text-xs font-semibold text-gray-400 pb-1 border-b border-gray-600">
+                      <span class="col-span-1">#</span>
+                      <span class="col-span-2">이름</span>
+                      <span class="col-span-1">점수</span>
+                      <span class="col-span-1 text-right">관리</span>
+                  </div>
+                  <div class="flex-grow overflow-y-auto custom-scrollbar max-h-96">
+                      <ul id="rankings-list-game-${gameId}" class="space-y-2 pt-2">
+                          <li class="text-sm text-gray-400 py-1">랭킹 정보를 불러오는 중...</li>
+                      </ul>
+                  </div>
+              `;
+          gameRankingsContainer.appendChild(section);
+        });
+      }
+
+      /**
+       * 모든 랭킹 정보를 불러와 게임별로 분류하여 화면에 표시합니다.
+       */
+      async function loadAllRankings() {
+        if (GAMES.length === 0) {
+          console.log("게임 목록 로드 대기 중...");
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/rankings/all`);
+          if (!response.ok) {
+            throw new Error("전체 랭킹 로드 실패");
+          }
+          const allRankings = await response.json();
+
+          updateAllRankingsDisplay(allRankings);
+        } catch (error) {
+          console.error("전체 랭킹 로드 오류:", error);
+
+          // 각 게임별 리스트를 오류 메시지로 채움
+          GAMES.forEach((gameId) => {
+            const listElement = document.getElementById(
+              `rankings-list-game-${gameId}`
+            );
+            if (listElement) {
+              listElement.innerHTML = `<li class="text-sm text-red-400 py-1">로드 실패.</li>`;
+            }
+          });
+        }
+      }
+
+      /**
+       * 전체 랭킹 목록을 받아 게임별로 필터링 및 정렬하여 화면에 그립니다.
+       */
+      function updateAllRankingsDisplay(allRankings) {
+        GAMES.forEach((gameId) => {
+          const listElement = document.getElementById(
+            `rankings-list-game-${gameId}`
+          );
+          if (!listElement) return;
+
+          // 1. 해당 게임의 랭킹만 필터링 (API key 사용)
+          let gameRankings = allRankings.filter((item) => item.game === gameId);
+
+          // 2. 점수(score) 기준으로 내림차순 정렬
+          gameRankings.sort((a, b) => b.score - a.score);
+
+          listElement.innerHTML = "";
+
+          if (gameRankings.length === 0) {
+            listElement.innerHTML = `<li class="text-sm text-gray-400 py-1">등록된 랭킹이 없습니다.</li>`;
+            return;
+          }
+
+          // 3. 랭킹 항목 생성 및 표시
+          gameRankings.forEach((item, index) => {
+            const li = document.createElement("li");
+            li.className =
+              "grid grid-cols-5 gap-1 items-center bg-gray-600 hover:bg-gray-500 p-2 rounded-md transition duration-150 text-sm";
+
+            li.innerHTML = `
+                      <div class="col-span-1 font-bold text-blue-300">${
+                        index + 1
+                      }</div>
+                      <div class="col-span-2 font-semibold truncate text-white">${
+                        item.name
+                      }</div>
+                      <div class="col-span-1 font-bold text-yellow-300">${
+                        item.score
+                      }</div>
+                  `;
+
+            const buttonDiv = document.createElement("div");
+            buttonDiv.className = "col-span-1 flex justify-end";
+
+            const deleteButton = document.createElement("button");
+            deleteButton.className =
+              "bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded transition duration-150";
+            deleteButton.textContent = "삭제";
+            deleteButton.onclick = () =>
+              deleteRanking(item.name, item.game, item.score);
+
+            buttonDiv.appendChild(deleteButton);
+            li.appendChild(buttonDiv);
+            listElement.appendChild(li);
+          });
+        });
+      }
+
+      /**
+       * 특정 랭킹 항목을 삭제합니다.
+       */
+      async function deleteRanking(name, game, score) {
+        const displayName = getGameDisplayName(game); // 사용자 친화적 이름 사용
+
+        if (
+          !confirm(
+            `'${name}'님의 '${displayName}' 랭킹(점수: ${score})을 정말 삭제하시겠습니까?`
+          )
+        ) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/rankings`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, game, score }),
+          });
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.detail || "랭킹 삭제 실패");
+          }
+          alert(result.message);
+          loadAllRankings(); // 목록 새로고침
+        } catch (error) {
+          alert(`랭킹 삭제 오류: ${error.message}`);
+        }
+      }
+
+      // 🚀 페이지 로드 시 랭킹 정보를 즉시 로드합니다.
+      loadGames();
+    </script>
+  </body>
+</html>
