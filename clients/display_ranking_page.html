@@ -12,16 +12,15 @@
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Creepster&family=Noto+Sans+KR:wght@400;700&display=swap");
 
-      /* 할로윈 색상 팔레트 */
       :root {
-        --bg: #111111; /* Ultra Dark background */
-        --panel: #1a1a1a; /* Dark panel background */
-        --item-bg: #333333; /* Card Background */
-        --orange-accent: #ff7800; /* Halloween Orange */
-        --purple-accent: #8a2be2; /* Spooky Purple */
-        --neon-green: #ccff00; /* Neon Green Highlight */
+        --bg: #111111;
+        --panel: #1a1a1a;
+        --item-bg: #333333;
+        --orange-accent: #ff7800;
+        --purple-accent: #8a2be2;
+        --neon-green: #ccff00;
         --text: #f3f4f6;
-        --rank-item-bg: #444444; /* Rank list item background */
+        --rank-item-bg: #444444;
         --rank-item-hover: #555555;
       }
 
@@ -30,7 +29,6 @@
         background-color: var(--bg);
         color: var(--text);
         padding: 20px;
-        /* 배경 패턴 추가 */
         background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path fill="%23333333" d="M30 0l20 20l-20 20l-20-20zM70 0l20 20l-20 20l-20-20zM30 60l20 20l-20 20l-20-20zM70 60l20 20l-20 20l-20-20z"/><path fill="%2222222" d="M10 30l20 20l-20 20l-20-20zM50 30l20 20l-20 20l-20-20zM10 90l20 20l-20 20l-20-20zM50 90l20 20l-20 20l-20-20z"/></svg>');
         background-size: 40px 40px;
       }
@@ -39,11 +37,39 @@
         font-family: "Creepster", cursive;
       }
 
+      /* ✅ [수정] 5분할 레이아웃으로 변경 (반응형 추가) */
+      #ranking-grid {
+        display: grid;
+        /* 기본: 5열 고정 (최소 200px) */
+        grid-template-columns: repeat(5, minmax(200px, 1fr));
+        gap: 1.75rem;
+        /* 중앙 정렬 제거, 전체 너비 사용 */
+        max-width: none;
+        margin: 0;
+      }
+
+      /* 태블릿/작은 데스크톱 (1280px 이하): 3열로 전환 */
+      @media (max-width: 1280px) {
+          #ranking-grid {
+              grid-template-columns: repeat(3, minmax(250px, 1fr));
+          }
+      }
+
+      /* 모바일 (767px 이하): 1열로 전환 */
+      @media (max-width: 767px) {
+          #ranking-grid {
+              grid-template-columns: repeat(1, 1fr);
+          }
+      }
+      /* ✅ 수정 끝 */
+
+
       #ranking-grid .game-card {
         background-color: var(--item-bg);
         border: 2px solid var(--purple-accent);
         box-shadow: 0 0 15px rgba(138, 43, 226, 0.3);
         transition: transform 0.3s ease;
+        min-width: 280px; /* 280px은 반응형으로 인해 큰 의미는 없지만 유지 */
       }
 
       #ranking-grid .game-card:hover {
@@ -81,200 +107,178 @@
       </p>
     </header>
 
-    <main class="max-w-7xl mx-auto">
+    <main class="mx-auto w-full">
       <section
         style="background: var(--panel); border: 2px solid var(--orange-accent)"
         class="p-6 md:p-8 rounded-3xl shadow-2xl"
       >
         <div id="ranking-list-container">
-          <div
-            id="ranking-grid"
-            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6"
-          ></div>
+          <div id="ranking-grid"></div>
         </div>
       </section>
     </main>
-
     <script>
-  let GAMES = []; // API에서 받은 게임 ID 리스트 ("1", "2", ...)
-  const rankingGrid = document.getElementById("ranking-grid");
+      let GAMES = [];
+      const rankingGrid = document.getElementById("ranking-grid");
 
-  // 👻 게임 ID와 사용자 친화적인 게임 이름 매핑
-  const GAMES_MAP = {
-    "1": "EggTime",
-    "2": "Pink O Park",
-    "3": "Defend & Destroy",
-    "4": "끝까지 막아라!",
-    "5": "메테오 피하기!",
-  };
+      const GAMES_MAP = {
+        "1": "EggTime",
+        "2": "Pink O Park",
+        "3": "Defend & Destroy",
+        "4": "끝까지 막아라!",
+        "5": "The Last Reign",
+      };
 
-  // 서버에서 게임 목록 가져오기
-  async function fetchGames() {
-    try {
-      const apiBase = window.location.origin;
-      const response = await fetch(`${apiBase}/api/v1/games`);
-      const data = await response.json();
+      async function fetchGames() {
+        try {
+          // CORS 문제나 배포 환경 문제로 인해 GAMES가 5개가 아닐 수 있습니다.
+          // 현재 코드는 게임이 5개라고 가정하고 5열을 만듭니다.
+          const apiBase = window.location.origin;
+          const response = await fetch(`${apiBase}/api/v1/games`);
+          const data = await response.json();
 
-      GAMES = data.games;
-
-      createSections();
-      connectWebSocket();
-    } catch (error) {
-      console.error("게임 목록을 가져오는데 실패했습니다:", error);
-      GAMES = ["1", "2", "3", "4", "5"];
-      createSections();
-    }
-  }
-
-  // WebSocket URL 설정
-  const host = window.location.host;
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const websocketUrl = `${wsProtocol}//${host}/api/v1/queue/ws`;
-
-  // 각 게임별 섹션을 동적으로 생성
-  function createSections() {
-    rankingGrid.innerHTML = "";
-    GAMES.forEach((gameId) => {
-      const card = document.createElement("section");
-      card.className = "game-card p-5 rounded-2xl shadow-xl flex flex-col";
-
-      const gameName = GAMES_MAP[gameId] || `게임 ID: ${gameId}`;
-
-      const title = document.createElement("h2");
-      title.className =
-        "text-2xl font-bold spooky-font text-purple-accent mb-4 truncate text-center";
-      title.textContent = gameName.toUpperCase();
-
-      const ol = document.createElement("ol");
-      ol.id = `ranking-list-${gameId}`;
-      ol.className =
-        "space-y-3 list-decimal list-inside flex-1 overflow-hidden";
-
-      const empty = document.createElement("li");
-      empty.className = "text-lg text-gray-400 py-2 text-center";
-      empty.textContent = "랭킹 정보가 없습니다.";
-      ol.appendChild(empty);
-
-      card.appendChild(title);
-      card.appendChild(ol);
-      rankingGrid.appendChild(card);
-    });
-  }
-
-  function maskName(name) {
-    if (!name) return "";
-    if (name.length <= 1) return name;
-    return name[0] + "*".repeat(name.length - 1);
-  }
-
-  // ✅ 수정된 부분: 2번 게임만 정렬/표시 방식 변경
-  function updateAllRankings(rankingData) {
-    GAMES.forEach((gameId) => {
-      const listEl = document.getElementById(`ranking-list-${gameId}`);
-      if (!listEl) return;
-      listEl.innerHTML = "";
-
-      const gameRanking = rankingData[gameId] || [];
-
-      // ⚙️ 정렬 기준 분기
-      if (gameId === "2") {
-        // 2번: 시간이 적을수록 높은 순위
-        gameRanking.sort((a, b) => a.score - b.score);
-      } else {
-        // 나머지: 점수가 높을수록 높은 순위
-        gameRanking.sort((a, b) => b.score - a.score);
+          GAMES = data.games;
+          createSections();
+          connectWebSocket();
+        } catch (error) {
+          console.error("게임 목록을 가져오는데 실패했습니다:", error);
+          // GAMES를 5개로 강제 설정하여 5분할 레이아웃이 깨지지 않도록 폴백 처리
+          // 실제 서버 연동 시에는 이 부분이 오류의 원인이 될 수 있습니다.
+          GAMES = ["1", "2", "3", "4", "5"];
+          createSections();
+        }
       }
 
-      if (gameRanking.length === 0) {
-        const empty = document.createElement("li");
-        empty.className = "text-lg text-gray-400 py-2 text-center";
-        empty.innerHTML =
-          '<i class="fas fa-spider"></i> 랭킹 정보가 없습니다.';
-        listEl.appendChild(empty);
-      } else {
-        gameRanking.forEach((item, index) => {
-          const li = document.createElement("li");
-          li.className =
-            "rank-item flex justify-between items-center text-base md:text-lg p-3 rounded-xl transition duration-150";
+      const host = window.location.host;
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const websocketUrl = `${wsProtocol}//${host}/api/v1/queue/ws`;
 
-          let rankIcon = "";
-          let rankNameClass = "text-text";
-          let scoreClass = "score-text";
+      function createSections() {
+        rankingGrid.innerHTML = "";
+        GAMES.forEach((gameId) => {
+          const card = document.createElement("section");
+          // min-w-280px 클래스를 제거하여 5열 레이아웃에 유연하게 대응하도록 조정
+          card.className = "game-card p-5 rounded-2xl shadow-xl flex flex-col";
 
-          if (index === 0) {
-            rankIcon = '<i class="fas fa-crown text-neon-green mr-2"></i>';
-            rankNameClass = "font-extrabold text-neon-green text-xl";
-          } else if (index === 1) {
-            rankIcon = '<i class="fas fa-medal text-gray-400 mr-2"></i>';
-            rankNameClass = "font-bold text-gray-300";
-          } else if (index === 2) {
-            rankIcon =
-              '<i class="fas fa-medal text-orange-accent mr-2"></i>';
-            rankNameClass = "font-bold text-orange-accent";
-          }
+          const gameName = GAMES_MAP[gameId] || `게임 ID: ${gameId}`;
 
-          const nameSpan = document.createElement("span");
-          nameSpan.className = `${rankNameClass} truncate`;
-          nameSpan.innerHTML = `${rankIcon}${item.name}`;
+          const title = document.createElement("h2");
+          title.className =
+            "text-2xl font-bold spooky-font text-purple-accent mb-4 truncate text-center";
+          title.textContent = gameName.toUpperCase();
 
-          const scoreSpan = document.createElement("span");
-          scoreSpan.className =
-            `${scoreClass} font-extrabold ml-4 whitespace-nowrap`;
+          const ol = document.createElement("ol");
+          ol.id = `ranking-list-${gameId}`;
+          ol.className =
+            "space-y-3 list-decimal list-inside flex-1 overflow-hidden";
 
-          // ⚙️ 점수 포맷 분기
-          if (gameId === "2") {
-            // 2번 게임: 초 단위를 '분:초'로 표시
-            const totalSeconds = Math.floor(parseFloat(item.score));
-            const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
-            const seconds = String(totalSeconds % 60).padStart(2, "0");
-            scoreSpan.textContent = `${minutes}:${seconds}`;
-          } else {
-            // 기본: '점'으로 표시
-            scoreSpan.textContent = `${item.score}점`;
-          }
+          const empty = document.createElement("li");
+          empty.className = "text-lg text-gray-400 py-2 text-center";
+          empty.textContent = "랭킹 정보가 없습니다.";
+          ol.appendChild(empty);
 
-          li.appendChild(nameSpan);
-          li.appendChild(scoreSpan);
-          listEl.appendChild(li);
+          card.appendChild(title);
+          card.appendChild(ol);
+          rankingGrid.appendChild(card);
         });
       }
-    });
-  }
 
-  // WebSocket 연결
-  function connectWebSocket() {
-    const ws = new WebSocket(websocketUrl);
-    ws.onmessage = function (ev) {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.ranking_list) {
-          updateAllRankings(data.ranking_list);
-        }
-      } catch (e) {
-        console.error("WebSocket 데이터 처리 오류:", e);
+      function updateAllRankings(rankingData) {
+        GAMES.forEach((gameId) => {
+          const listEl = document.getElementById(`ranking-list-${gameId}`);
+          if (!listEl) return;
+          listEl.innerHTML = "";
+
+          const gameRanking = rankingData[gameId] || [];
+
+          if (gameId === "2" || gameId === "5") {
+            gameRanking.sort((a, b) => a.score - b.score);
+          } else {
+            gameRanking.sort((a, b) => b.score - a.score);
+          }
+
+          if (gameRanking.length === 0) {
+            const empty = document.createElement("li");
+            empty.className = "text-lg text-gray-400 py-2 text-center";
+            empty.innerHTML =
+              '<i class="fas fa-spider"></i> 랭킹 정보가 없습니다.';
+            listEl.appendChild(empty);
+          } else {
+            gameRanking.forEach((item, index) => {
+              const li = document.createElement("li");
+              li.className =
+                "rank-item flex items-center justify-between gap-3 text-base md:text-lg p-3 rounded-xl transition duration-150";
+
+              let rankIcon = "";
+              let rankNameClass = "text-text";
+              let scoreClass = "score-text";
+
+              if (index === 0) {
+                rankIcon = '<i class="fas fa-crown text-neon-green mr-2"></i>';
+                rankNameClass = "font-extrabold text-neon-green text-xl";
+              } else if (index === 1) {
+                rankIcon = '<i class="fas fa-medal text-gray-400 mr-2"></i>';
+                rankNameClass = "font-bold text-gray-300";
+              } else if (index === 2) {
+                rankIcon =
+                  '<i class="fas fa-medal text-orange-accent mr-2"></i>';
+                rankNameClass = "font-bold text-orange-accent";
+              }
+
+              const nameSpan = document.createElement("span");
+              nameSpan.className = `${rankNameClass} truncate`;
+              nameSpan.innerHTML = `${rankIcon}${item.name}`;
+
+              const scoreSpan = document.createElement("span");
+              scoreSpan.className = `${scoreClass} font-extrabold ml-4 whitespace-nowrap`;
+
+              if (gameId === "2" || gameId === "5") {
+                const totalSeconds = Math.floor(parseFloat(item.score));
+                const minutes = String(Math.floor(totalSeconds / 60)).padStart(
+                  2,
+                  "0"
+                );
+                const seconds = String(totalSeconds % 60).padStart(2, "0");
+                scoreSpan.textContent = `${minutes}분 ${seconds}초`;
+              } else {
+                scoreSpan.textContent = `${item.score}점`;
+              }
+
+              li.appendChild(nameSpan);
+              li.appendChild(scoreSpan);
+              listEl.appendChild(li);
+            });
+          }
+        });
       }
-    };
 
-    ws.onopen = () => {
-      console.log("WebSocket connected for rankings");
-    };
+      function connectWebSocket() {
+        const ws = new WebSocket(websocketUrl);
+        ws.onmessage = function (ev) {
+          try {
+            const data = JSON.parse(ev.data);
+            if (data.ranking_list) {
+              updateAllRankings(data.ranking_list);
+            }
+          } catch (e) {
+            console.error("WebSocket 데이터 처리 오류:", e);
+          }
+        };
 
-    ws.onclose = () => {
-      console.warn("WebSocket disconnected. Reconnecting...");
-      setTimeout(connectWebSocket, 5000);
-    };
+        ws.onopen = () => console.log("WebSocket connected for rankings");
+        ws.onclose = () => {
+          console.warn("WebSocket disconnected. Reconnecting...");
+          setTimeout(connectWebSocket, 5000);
+        };
+        ws.onerror = (err) => {
+          console.error("WS error for rankings:", err);
+          try {
+            ws.close();
+          } catch (e) {}
+        };
+      }
 
-    ws.onerror = (err) => {
-      console.error("WS error for rankings:", err);
-      try {
-        ws.close();
-      } catch (e) {}
-    };
-  }
-
-  // 초기화
-  fetchGames();
-</script>
-
+      fetchGames();
+    </script>
   </body>
 </html>

@@ -75,7 +75,7 @@
         "2": "Pink O Park",
         "3": "Defend & Destroy",
         "4": "끝까지 막아라!",
-        "5": "피해보던가!",
+        "5": "The Last Reign",
       };
 
       let GAMES = [];
@@ -164,7 +164,7 @@
 
           let gameRankings = allRankings.filter((item) => item.game === gameId);
 
-          if (gameId === "2") {
+          if (gameId === "2" || gameId ==="5") {
             gameRankings.sort((a, b) => a.score - b.score);
           } else {
             gameRankings.sort((a, b) => b.score - a.score);
@@ -189,7 +189,7 @@
 
             // 점수 포맷
             let displayScore = "";
-            if (gameId === "2") {
+            if (gameId === "2" || gameId ==="5") {
               const totalSeconds = Math.floor(parseFloat(item.score));
               const minutes = Math.floor(totalSeconds / 60);
               const seconds = totalSeconds % 60;
