@@ -25,16 +25,17 @@ cursor.execute("""
 """)
 
 # === rankings 테이블 생성 ===
-# 주의: main.py와 일치하도록 game 컬럼 추가 + 복합 기본키 설정
+# 변경: 전화번호를 포함한 복합 기본키 사용 (중복 이름 문제 해결)
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS rankings (
         name TEXT NOT NULL,
+        phone_number TEXT NOT NULL,
         game TEXT NOT NULL,
         score INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (name, game)
+        PRIMARY KEY (name, game, phone_number)
     )
 """)
 
 conn.commit()
 conn.close()
-print("✅ DB 초기화 완료: 'queue' 및 'rankings' 테이블 생성됨.")
+print("✅ DB 초기화 완료: 'queue' 및 'rankings' 테이블 생성됨 (중복 이름 문제 해결).")

@@ -38,12 +38,14 @@ def try_migrate_rankings_schema():
         cols = [row[1] for row in rows]
         if cols and 'game' not in cols:
             print("[DB MIGRATE] Detected old 'rankings' schema without 'game' column. Migrating...")
+            # --- rankings 테이블 초기화 부분 ---
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS rankings_new (
+                CREATE TABLE IF NOT EXISTS rankings (
                     name TEXT NOT NULL,
+                    phone_number TEXT NOT NULL,
                     game TEXT NOT NULL,
                     score INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (name, game)
+                    PRIMARY KEY (name, game, phone_number)
                 )
             """)
             default_game = GAMES[0]
@@ -120,14 +122,17 @@ class CompleteData(BaseModel):
 
 class RankingEntry(BaseModel):
     name: str
+    phone_number: str  # 새로 추가
     score: int
     game: Optional[str] = None
 
 
 class FullRankingEntry(BaseModel):
     name: str
+    phone_number: str  # 새로 추가
     score: int
     game: str
+
 
 
 # --- FastAPI 앱 및 WebSocket 관리자 ---
@@ -183,27 +188,34 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# --- 헬퍼 함수: 현재 대기열 및 랭킹 데이터 조회 ---
 def get_queue_data(conn: sqlite3.Connection):
     cursor = conn.cursor()
     cursor.execute(
         "SELECT id, name, phone_number, registered_at, status FROM queue WHERE status IN ('waiting', 'called') ORDER BY registered_at ASC")
     queue_rows = cursor.fetchall()
-    # sqlite3.Row -> dict 변환
     queue_list = [QueueEntry(**dict(row)) for row in queue_rows]
 
-    # 게임별 상위 5명 랭킹을 반환
+    # 게임별 상위 5명 랭킹을 phone_number 포함해서 반환
     ranking_dict = {}
     for game in GAMES:
-        cursor.execute("SELECT name, score FROM rankings WHERE game = ? ORDER BY score DESC LIMIT 5", (game,))
+        cursor.execute("SELECT name, phone_number, score FROM rankings WHERE game = ? ORDER BY score DESC LIMIT 5", (game,))
         ranking_rows = cursor.fetchall()
-        ranking_list = [RankingEntry(name=row["name"], score=row["score"], game=game) for row in ranking_rows]
+        ranking_list = [
+            RankingEntry(
+                name=row["name"],
+                phone_number=row["phone_number"],
+                score=row["score"],
+                game=game
+            ) for row in ranking_rows
+        ]
         ranking_dict[game] = [r.model_dump() for r in ranking_list]
 
     return {
         "queue_list": [q.model_dump() for q in queue_list],
         "ranking_list": ranking_dict
     }
+
+
 
 
 @app.get('/')
@@ -300,8 +312,7 @@ async def call_specific_user(phone_number: str, conn: sqlite3.Connection = Depen
     await manager.broadcast(conn)
 
     return {"called_user_name": user_name, "phone_number": phone_number}
-
-
+# --- /api/v1/queue/complete 엔드포인트 수정 ---
 @app.post("/api/v1/queue/complete")
 async def complete_user(complete_data: CompleteData, conn: sqlite3.Connection = Depends(get_db_conn)):
     cursor = conn.cursor()
@@ -314,16 +325,18 @@ async def complete_user(complete_data: CompleteData, conn: sqlite3.Connection = 
     user_name = user["name"]
     cursor.execute("DELETE FROM queue WHERE phone_number = ?", (complete_data.phone_number,))
 
-    # game 값이 유효한지 확인
+    # 게임 값 유효성 확인
     game = complete_data.game
     if game not in GAMES:
         raise HTTPException(status_code=400, detail=f"유효하지 않은 게임입니다. 허용된 값: {GAMES}")
 
-    # 게임별로 순위를 저장 (동일한 name+game 키를 사용)
-    # 현재 동작: 동일한 (name, game) 키가 있으면 덮어씀. 필요하면 점수가 더 높은 경우만 업데이트하도록 변경 가능.
+    # 이름+게임+전화번호 기준으로 점수 저장 (중복 이름 문제 해결)
     cursor.execute(
-        "INSERT OR REPLACE INTO rankings (name, game, score) VALUES (?, ?, ?)",
-        (user_name, game, complete_data.score)
+        """
+        INSERT OR REPLACE INTO rankings (name, phone_number, game, score)
+        VALUES (?, ?, ?, ?)
+        """,
+        (user_name, complete_data.phone_number, game, complete_data.score)
     )
     conn.commit()
 
@@ -371,13 +384,11 @@ async def websocket_endpoint(websocket: WebSocket, conn: sqlite3.Connection = De
 
 @app.get("/api/v1/rankings/all", response_model=List[FullRankingEntry])
 async def get_all_rankings(conn: sqlite3.Connection = Depends(get_db_conn)):
-    """
-    'rankings' 테이블의 모든 기록을 조회합니다.
-    """
     cursor = conn.cursor()
-    cursor.execute("SELECT name, game, score FROM rankings ORDER BY game, score DESC")
+    cursor.execute("SELECT name, phone_number, game, score FROM rankings ORDER BY game, score DESC")
     ranking_rows = cursor.fetchall()
     return [FullRankingEntry(**dict(row)) for row in ranking_rows]
+
 
 
 @app.delete("/api/v1/rankings")

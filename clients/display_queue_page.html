@@ -1,3 +1,262 @@
+<!--<!DOCTYPE html>-->
+<!--<html lang="ko">-->
+<!--  <head>-->
+<!--    <meta charset="utf-8" />-->
+<!--    <meta name="viewport" content="width=device-width, initial-scale=1" />-->
+<!--    <title>🎃 대기열 - 실시간 유령 현황</title>-->
+<!--    <script src="https://cdn.tailwindcss.com"></script>-->
+<!--    <link-->
+<!--      rel="stylesheet"-->
+<!--      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"-->
+<!--    />-->
+<!--    <style>-->
+<!--      @import url("https://fonts.googleapis.com/css2?family=Creepster&family=Noto+Sans+KR:wght@400;700&display=swap");-->
+
+<!--      :root {-->
+<!--        &#45;&#45;bg: #111111;-->
+<!--        &#45;&#45;panel: #1a1a1a;-->
+<!--        &#45;&#45;muted: #a0a0a0;-->
+<!--        &#45;&#45;orange-accent: #ff7800;-->
+<!--        &#45;&#45;purple-accent: #8a2be2;-->
+<!--        &#45;&#45;neon-green: #ccff00;-->
+<!--        &#45;&#45;text: #f3f4f6;-->
+<!--        &#45;&#45;item-bg: #333333;-->
+<!--      }-->
+
+<!--      body {-->
+<!--        font-family: "Noto Sans KR", sans-serif;-->
+<!--        background-color: var(&#45;&#45;bg);-->
+<!--        color: var(&#45;&#45;muted);-->
+<!--        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="10" fill="%23333333" opacity="0.1"/><circle cx="50" cy="50" r="20" fill="none" stroke="%23333333" stroke-width="1" opacity="0.05"/></svg>');-->
+<!--        background-size: 20px 20px;-->
+<!--      }-->
+
+<!--      .spooky-font {-->
+<!--        font-family: "Creepster", cursive;-->
+<!--      }-->
+
+<!--      #queue-list-container {-->
+<!--        max-height: 60vh;-->
+<!--        overflow-y: auto;-->
+<!--      }-->
+<!--      #queue-list-container::-webkit-scrollbar {-->
+<!--        display: none;-->
+<!--      }-->
+<!--      #called-area h2 {-->
+<!--        color: var(&#45;&#45;neon-green);-->
+<!--        text-shadow: 0 0 5px rgba(204, 255, 0, 0.5);-->
+<!--      }-->
+<!--      #called-list {-->
+<!--        background-color: var(&#45;&#45;purple-accent) !important;-->
+<!--        border: 4px solid var(&#45;&#45;neon-green);-->
+<!--        box-shadow: 0 0 30px rgba(138, 43, 226, 0.6);-->
+<!--      }-->
+<!--      #called-list .called-item {-->
+<!--        background-color: #581c87;-->
+<!--        color: var(&#45;&#45;neon-green);-->
+<!--        border: 1px solid var(&#45;&#45;neon-green);-->
+<!--        transition: transform 0.3s ease;-->
+<!--      }-->
+<!--      #called-list .called-item:hover {-->
+<!--        transform: scale(1.05);-->
+<!--      }-->
+<!--      #queue-area h2 {-->
+<!--        color: var(&#45;&#45;orange-accent);-->
+<!--      }-->
+<!--      .waiting-item {-->
+<!--        background-color: var(&#45;&#45;item-bg) !important;-->
+<!--        border-left-color: var(&#45;&#45;orange-accent) !important;-->
+<!--        border-radius: 12px;-->
+<!--        transition: background-color 0.3s ease;-->
+<!--      }-->
+<!--      .waiting-item:hover {-->
+<!--        background-color: #444444 !important;-->
+<!--      }-->
+<!--      .waiting-rank {-->
+<!--        color: var(&#45;&#45;orange-accent) !important;-->
+<!--      }-->
+<!--      .waiting-name {-->
+<!--        color: var(&#45;&#45;text) !important;-->
+<!--      }-->
+<!--    </style>-->
+<!--  </head>-->
+<!--  <body class="p-6 md:p-10">-->
+<!--    <header class="text-center mb-10">-->
+<!--      <h1-->
+<!--        class="text-5xl md:text-6xl font-extrabold text-orange-accent spooky-font mb-2"-->
+<!--      >-->
+<!--        <i class="fas fa-hat-wizard"></i> 실시간 유령 대기 현황-->
+<!--        <i class="fas fa-pumpkin"></i>-->
+<!--      </h1>-->
+<!--      <p class="text-xl md:text-2xl text-text mt-4">-->
+<!--        현재 대기 중인 유령:-->
+<!--        <span id="total-waiters" class="text-neon-green font-bold text-3xl"-->
+<!--          >0명</span-->
+<!--        >-->
+<!--      </p>-->
+<!--    </header>-->
+
+<!--    <main class="max-w-6xl mx-auto">-->
+<!--      <section-->
+<!--        style="background: var(&#45;&#45;panel); border: 2px solid var(&#45;&#45;purple-accent)"-->
+<!--        class="p-6 md:p-8 rounded-3xl shadow-2xl"-->
+<!--      >-->
+<!--        <div class="flex flex-col lg:flex-row gap-8">-->
+<!--          <div id="called-area" class="lg:w-1/3">-->
+<!--            <h2 class="text-3xl font-extrabold mb-4 spooky-font">-->
+<!--              호출됨, 입장해주세요!-->
+<!--            </h2>-->
+<!--            <div-->
+<!--              id="called-list"-->
+<!--              class="flex flex-col gap-4 p-6 rounded-2xl items-center justify-start min-h-[260px]"-->
+<!--            >-->
+<!--              <span class="text-gray-400">마법진 연결 중...</span>-->
+<!--            </div>-->
+<!--          </div>-->
+
+<!--          <div id="queue-area" class="lg:w-2/3">-->
+<!--            <h2 class="text-3xl font-bold mb-4 spooky-font">현재 대기열</h2>-->
+<!--            <div id="queue-list-container">-->
+<!--              <ul id="queue-list" class="space-y-4">-->
+<!--                <li-->
+<!--                  id="empty-message"-->
+<!--                  class="text-xl text-gray-500 p-4 rounded-xl"-->
+<!--                  style="background: var(&#45;&#45;item-bg)"-->
+<!--                >-->
+<!--                  <i class="fas fa-check-circle text-neon-green"></i> 현재 대기-->
+<!--                  인원이 없습니다. 잠시 후 유령이 등록됩니다.-->
+<!--                </li>-->
+<!--              </ul>-->
+<!--            </div>-->
+<!--          </div>-->
+<!--        </div>-->
+<!--      </section>-->
+<!--    </main>-->
+
+<!--    <script>-->
+<!--      const host = window.location.host;-->
+<!--      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";-->
+<!--      const websocketUrl = `${wsProtocol}//${host}/api/v1/queue/ws?mode=queue`;-->
+
+<!--      const queueListElement = document.getElementById("queue-list");-->
+<!--      const calledListElement = document.getElementById("called-list");-->
+<!--      const emptyMessage = document.getElementById("empty-message");-->
+<!--      const totalWaitersElement = document.getElementById("total-waiters");-->
+
+<!--      // 🔊 자동 알림 사운드 설정-->
+<!--      let calledNames = new Set();-->
+<!--      const alertSound = new Audio(-->
+<!--        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_1b64b0a7e2.mp3?filename=notification-4-257974.mp3"-->
+<!--      );-->
+<!--      alertSound.volume = 0.7;-->
+
+<!--      // 초기 1회 자동 재생 시도 (브라우저 정책상 실패할 수 있음)-->
+<!--      alertSound.play().catch(() => {-->
+<!--        console.warn("자동 재생이 차단됨 (첫 사용자 상호작용 이후부터 재생됨)");-->
+<!--      });-->
+
+<!--      // 사용자가 페이지 클릭하면 오디오 권한 확보-->
+<!--      document.addEventListener(-->
+<!--        "click",-->
+<!--        () => {-->
+<!--          alertSound.play().catch(() => {});-->
+<!--        },-->
+<!--        { once: true }-->
+<!--      );-->
+
+<!--      function maskName(name) {-->
+<!--        if (!name) return "";-->
+<!--        if (name.length <= 1) return name;-->
+<!--        return name[0] + "*".repeat(name.length - 1);-->
+<!--      }-->
+
+<!--      function connectWebSocket() {-->
+<!--        const ws = new WebSocket(websocketUrl);-->
+<!--        ws.onmessage = (ev) => {-->
+<!--          try {-->
+<!--            const data = JSON.parse(ev.data);-->
+<!--            if (data.queue_list) updateQueueDisplay(data.queue_list);-->
+<!--          } catch (e) {-->
+<!--            console.error(e);-->
+<!--          }-->
+<!--        };-->
+<!--        ws.onopen = () => console.log("WebSocket connected.");-->
+<!--        ws.onclose = () => {-->
+<!--          calledListElement.innerHTML = `<span class="text-spooky-red font-bold">마법진 연결 끊김. 재시도 중...</span>`;-->
+<!--          queueListElement.innerHTML = `<li class="text-xl text-spooky-red p-4 rounded-xl" style="background: var(&#45;&#45;item-bg);">-->
+<!--                <i class="fas fa-exclamation-triangle"></i> 실시간 업데이트가 중단되었습니다.-->
+<!--             </li>`;-->
+<!--          setTimeout(connectWebSocket, 5000);-->
+<!--        };-->
+<!--        ws.onerror = (err) => {-->
+<!--          console.error("WS err", err);-->
+<!--          ws.close();-->
+<!--        };-->
+<!--      }-->
+
+<!--      function updateQueueDisplay(queueList) {-->
+<!--        const calledUsers = queueList.filter((i) => i.status === "called");-->
+
+<!--        // 🔊 새 호출 감지 → 소리 재생-->
+<!--        const newCalled = calledUsers-->
+<!--          .map((u) => u.name)-->
+<!--          .filter((name) => !calledNames.has(name));-->
+<!--        if (newCalled.length > 0) {-->
+<!--          alertSound.play().catch(() => {});-->
+<!--        }-->
+
+<!--        calledNames = new Set(calledUsers.map((u) => u.name));-->
+
+<!--        calledListElement.innerHTML = "";-->
+<!--        if (calledUsers.length === 0) {-->
+<!--          const span = document.createElement("span");-->
+<!--          span.className = "text-text text-xl";-->
+<!--          span.textContent = "현재 이용 중인 유령 없음";-->
+<!--          calledListElement.appendChild(span);-->
+<!--        } else {-->
+<!--          calledUsers.slice(0, 5).forEach((u) => {-->
+<!--            const span = document.createElement("span");-->
+<!--            span.className =-->
+<!--              "called-item px-6 py-3 rounded-xl text-3xl font-extrabold w-full text-center";-->
+<!--            span.innerHTML = `<i class="fas fa-broom"></i> ${maskName(u.name)}`;-->
+<!--            calledListElement.appendChild(span);-->
+<!--          });-->
+<!--        }-->
+
+<!--        // 대기열-->
+<!--        const waiting = queueList.filter((i) => i.status === "waiting");-->
+<!--        queueListElement.innerHTML = "";-->
+<!--        totalWaitersElement.textContent = waiting.length;-->
+
+<!--        if (waiting.length === 0) {-->
+<!--          emptyMessage.style.display = "";-->
+<!--          queueListElement.appendChild(emptyMessage);-->
+<!--        } else {-->
+<!--          emptyMessage.style.display = "none";-->
+<!--          waiting.forEach((u, idx) => {-->
+<!--            const li = document.createElement("li");-->
+<!--            li.className =-->
+<!--              "waiting-item flex justify-between items-center p-4 border-l-8 hover:scale-[1.01] transform transition-transform";-->
+<!--            li.innerHTML = `-->
+<!--                <span class="text-4xl font-extrabold waiting-rank w-1/6 text-left">${-->
+<!--                  idx + 1-->
+<!--                }.</span>-->
+<!--                <span class="text-3xl waiting-name w-5/6 truncate text-left font-bold">${maskName(-->
+<!--                  u.name-->
+<!--                )}</span>-->
+<!--            `;-->
+<!--            queueListElement.appendChild(li);-->
+<!--          });-->
+<!--        }-->
+<!--      }-->
+
+<!--      calledListElement.innerHTML = `<span class="text-text text-xl">마법진 연결 중...</span>`;-->
+<!--      connectWebSocket();-->
+<!--    </script>-->
+<!--  </body>-->
+<!--</html>-->
+
+
 <!DOCTYPE html>
 <html lang="ko">
   <head>
@@ -149,13 +408,9 @@
         "https://cdn.pixabay.com/download/audio/2022/03/15/audio_1b64b0a7e2.mp3?filename=notification-4-257974.mp3"
       );
       alertSound.volume = 0.7;
-
-      // 초기 1회 자동 재생 시도 (브라우저 정책상 실패할 수 있음)
       alertSound.play().catch(() => {
         console.warn("자동 재생이 차단됨 (첫 사용자 상호작용 이후부터 재생됨)");
       });
-
-      // 사용자가 페이지 클릭하면 오디오 권한 확보
       document.addEventListener(
         "click",
         () => {
@@ -164,6 +419,7 @@
         { once: true }
       );
 
+      // 이름 일부 가리기
       function maskName(name) {
         if (!name) return "";
         if (name.length <= 1) return name;
@@ -204,9 +460,9 @@
         if (newCalled.length > 0) {
           alertSound.play().catch(() => {});
         }
-
         calledNames = new Set(calledUsers.map((u) => u.name));
 
+        // 호출된 유령 표시 (이름 전체 표시)
         calledListElement.innerHTML = "";
         if (calledUsers.length === 0) {
           const span = document.createElement("span");
@@ -218,12 +474,12 @@
             const span = document.createElement("span");
             span.className =
               "called-item px-6 py-3 rounded-xl text-3xl font-extrabold w-full text-center";
-            span.innerHTML = `<i class="fas fa-broom"></i> ${maskName(u.name)}`;
+            span.innerHTML = `<i class="fas fa-broom"></i> ${u.name}`; // ✅ 이름 전체 표시
             calledListElement.appendChild(span);
           });
         }
 
-        // 대기열
+        // 대기열 표시 (이름 가리기)
         const waiting = queueList.filter((i) => i.status === "waiting");
         queueListElement.innerHTML = "";
         totalWaitersElement.textContent = waiting.length;
